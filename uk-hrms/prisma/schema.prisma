@@ -1,0 +1,297 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+  schemas   = ["public", "auth"]
+}
+
+model Employee {
+  id                String    @id @default(cuid())
+  userId            String    @unique
+  employeeId        String    @unique
+  firstName         String
+  lastName          String
+  middleName        String?
+  dateOfBirth       DateTime
+  gender            Gender
+  maritalStatus     MaritalStatus
+  nationality       String
+  nationalId        String?
+  passportNumber    String?
+  passportExpiry    DateTime?
+  drivingLicense    String?
+  drivingExpiry     DateTime?
+  address           Address?
+  contact           Contact?
+  emergencyContacts EmergencyContact[]
+  dependents        Dependent[]
+  immigration       ImmigrationRecord[]
+  jobDetails        JobDetails?
+  salary            SalaryComponent[]
+  taxExemptions     TaxExemptions?
+  reportingTo       ReportingRelationship[]
+  subordinates      ReportingRelationship[] @relation("Subordinates")
+  education         Education[]
+  workExperience    WorkExperience[]
+  skills            Skill[]
+  languages         Language[]
+  memberships       Membership[]
+  attachments       Attachment[]
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@schema("public")
+}
+
+model Address {
+  id          String   @id @default(cuid())
+  employeeId  String   @unique
+  street      String
+  city        String
+  state       String
+  postalCode  String
+  country     String
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@schema("public")
+}
+
+model Contact {
+  id          String   @id @default(cuid())
+  employeeId  String   @unique
+  email       String
+  phone       String
+  mobile      String?
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@schema("public")
+}
+
+model EmergencyContact {
+  id          String   @id @default(cuid())
+  employeeId  String
+  name        String
+  relationship String
+  phone       String
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@schema("public")
+}
+
+model Dependent {
+  id          String   @id @default(cuid())
+  employeeId  String
+  name        String
+  relationship String
+  dateOfBirth DateTime
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@schema("public")
+}
+
+model ImmigrationRecord {
+  id          String   @id @default(cuid())
+  employeeId  String
+  documentType String
+  documentNumber String
+  issuedDate  DateTime
+  expiryDate  DateTime
+  country     String
+  status      String
+  reviewDate  DateTime?
+  comments    String?
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@schema("public")
+}
+
+model JobDetails {
+  id                String   @id @default(cuid())
+  employeeId        String   @unique
+  jobTitle          String
+  employmentStatus  String
+  jobCategory       String
+  joinedDate        DateTime
+  department        String
+  location          String
+  contractStartDate DateTime
+  contractEndDate   DateTime
+  workShift         String
+  workSchedule      String
+  probationEndDate  DateTime?
+  noticePeriod      String?
+  reportingTo       String?
+  costCenter        String?
+  employee          Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@schema("public")
+}
+
+model SalaryComponent {
+  id              String   @id @default(cuid())
+  employeeId      String
+  name            String
+  amount          Float
+  currency        String
+  frequency       String
+  directDeposit   Boolean  @default(false)
+  effectiveDate   DateTime
+  comments        String?
+  employee        Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@schema("public")
+}
+
+model TaxExemptions {
+  id                    String   @id @default(cuid())
+  employeeId            String   @unique
+  federalStatus         String
+  federalExemptions     Int
+  state                 String
+  stateStatus           String
+  stateExemptions       Int
+  unemploymentState     String
+  workState             String
+  additionalAmount      Float
+  additionalAmountYTD   Float
+  taxExemptions         String
+  taxExemptionsYTD      String
+  taxExemptionsEffectiveDate DateTime
+  taxExemptionsExpiryDate DateTime
+  taxExemptionsComments String?
+  employee              Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@schema("public")
+}
+
+model ReportingRelationship {
+  id              String   @id @default(cuid())
+  employeeId      String
+  supervisorId    String
+  reportingMethod String
+  department      String
+  effectiveDate   DateTime
+  comments        String?
+  employee        Employee @relation("Subordinates", fields: [employeeId], references: [id], onDelete: Cascade)
+  supervisor      Employee @relation(fields: [supervisorId], references: [id], onDelete: Cascade)
+
+  @@schema("public")
+}
+
+model Education {
+  id          String   @id @default(cuid())
+  employeeId  String
+  level       String
+  institute   String
+  major       String
+  year        Int
+  score       String?
+  startDate   DateTime
+  endDate     DateTime
+  comments    String?
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@schema("public")
+}
+
+model WorkExperience {
+  id              String   @id @default(cuid())
+  employeeId      String
+  company         String
+  jobTitle        String
+  startDate       DateTime
+  endDate         DateTime
+  comments        String?
+  employee        Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@schema("public")
+}
+
+model Skill {
+  id              String   @id @default(cuid())
+  employeeId      String
+  name            String
+  yearsExperience Int
+  comments        String?
+  employee        Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@schema("public")
+}
+
+model Language {
+  id          String   @id @default(cuid())
+  employeeId  String
+  name        String
+  fluency     String
+  competency  String
+  comments    String?
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@schema("public")
+}
+
+model Membership {
+  id                String   @id @default(cuid())
+  employeeId        String
+  name              String
+  subscriptionPaidBy String
+  subscriptionAmount Float
+  currency          String
+  subscriptionPeriod String
+  startDate         DateTime
+  endDate           DateTime
+  renewalDate       DateTime?
+  comments          String?
+  employee          Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@schema("public")
+}
+
+model Attachment {
+  id          String   @id @default(cuid())
+  employeeId  String
+  name        String
+  url         String
+  type        String
+  size        Int
+  comments    String?
+  createdAt   DateTime @default(now())
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@schema("public")
+}
+
+enum Role {
+  USER
+  ADMIN
+  HR
+  MANAGER
+
+  @@schema("public")
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+
+  @@schema("public")
+}
+
+enum MaritalStatus {
+  SINGLE
+  MARRIED
+  DIVORCED
+  WIDOWED
+  OTHER
+
+  @@schema("public")
+} 
