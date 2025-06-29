@@ -1,0 +1,1185 @@
+# Delivix HR: Architectural Deep Dive
+
+## Chapter 9: Admin Module API
+
+This document outlines the API endpoints for the Admin module. This API is responsible for managing all the foundational metadata and organizational structure that the rest of the application relies on, such as job titles, company locations, and user accounts.
+
+### Key Architectural Observations
+- **Design Consistency**: The API follows the same clean, RESTful, and resource-oriented design patterns established in the PIM module. All endpoints are versioned under `/api/v2/admin/`.
+- **Comprehensive Coverage**: The endpoints provide full CRUD (Create, Read, Update, Delete) capabilities for all the key entities identified in the Admin data model.
+- **Clear Separation**: This API cleanly separates the management of system-wide metadata from the management of specific employee data, which resides in the PIM API.
+
+---
+
+### Admin API Endpoint Summary
+
+This table summarizes the most critical endpoints for managing the system's core configuration data.
+
+| Path                                  | Methods               | Description                                                                                             |
+| :------------------------------------ | :-------------------- | :------------------------------------------------------------------------------------------------------ |
+| `/api/v2/admin/organization`          | `GET`, `PUT`          | Manages the top-level company information.                                                              |
+| `/api/v2/admin/job-titles`            | `GET`, `POST`, `DELETE` | **CRUD** for job titles, a fundamental piece of data for employees and recruitment.                       |
+| `/api/v2/admin/subunits`              | `GET`, `POST`, `DELETE` | **CRUD** for organizational subunits (departments).                                                       |
+| `/api/v2/admin/employment-statuses`   | `GET`, `POST`, `DELETE` | **CRUD** for employee statuses (e.g., "Full-Time", "Part-Time", "Contract").                            |
+| `/api/v2/admin/locations`             | `GET`, `POST`, `DELETE` | **CRUD** for company office locations.                                                                  |
+| `/api/v2/admin/pay-grades`            | `GET`, `POST`, `DELETE` | **CRUD** for pay grades, which are linked to employees.                                                 |
+| `/api/v2/admin/users`                 | `GET`, `POST`, `DELETE` | **CRUD** for system users who can log in.                                                               |
+| `/api/v2/admin/skills`                | `GET`, `POST`, `DELETE` | Manages the central list of skills available to be assigned to employees.                               |
+| `/api/v2/admin/educations`            | `GET`, `POST`, `DELETE` | Manages the central list of educational qualifications.                                                 |
+| `/api/v2/admin/languages`             | `GET`, `POST`, `DELETE` | Manages the central list of languages.                                                                  |
+| `/api/v2/admin/nationalities`         | `GET`, `POST`, `DELETE` | Manages the central list of nationalities.                                                              |
+
+---
+
+### Conclusion
+The Admin API is the backbone of the system's configuration. Its clear, consistent, and comprehensive nature makes it a solid blueprint for managing the settings of our new Delivix HR application. # Delivix HR: Architectural Deep Dive
+
+## Chapter 2: Admin Module Data Model
+
+This document outlines the database schema for the Admin module. This module is responsible for managing the organizational structure and the metadata used throughout the application, providing the foundational data for other modules like PIM.
+
+### Core Configuration Tables
+
+- **`ohrm_organization_gen_info`**: A key-value store for general company information like name, tax ID, and address.
+  ```sql
+  CREATE TABLE `ohrm_organization_gen_info` (
+    `id` INT NOT NULL AUTO_INCREMENT,
+    `name` VARCHAR(100) NOT NULL,
+    `tax_id` VARCHAR(30) DEFAULT NULL,
+    `registration_number` VARCHAR(30) DEFAULT NULL,
+    `phone` VARCHAR(30) DEFAULT NULL,
+    `fax` VARCHAR(30) DEFAULT NULL,
+    `email` VARCHAR(30) DEFAULT NULL,
+    `country` VARCHAR(30) DEFAULT NULL,
+    `province` VARCHAR(30) DEFAULT NULL,
+    `city` VARCHAR(30) DEFAULT NULL,
+    `zip_code` VARCHAR(30) DEFAULT NULL,
+    `street1` VARCHAR(100) DEFAULT NULL,
+    `street2` VARCHAR(100) DEFAULT NULL,
+    `note` VARCHAR(255) DEFAULT NULL,
+    PRIMARY KEY (`id`)
+  ) ENGINE=INNODB DEFAULT CHARSET=utf8;
+  ```
+
+- **`ohrm_subunit`**: The core table for the Company Structure, allowing for a tree-like hierarchy of divisions and departments. It likely has a `parent` column referencing itself.
+  ```sql
+  CREATE TABLE `ohrm_subunit` (
+    `id` INT NOT NULL AUTO_INCREMENT,
+    `name` VARCHAR(100) NOT NULL,
+    `unit_id` VARCHAR(100) DEFAULT NULL,
+    `description` VARCHAR(400) DEFAULT NULL,
+    `lft` INT,
+    `rgt` INT,
+    `level` INT,
+    `parent` INT,
+    PRIMARY KEY (`id`)
+  ) ENGINE=INNODB DEFAULT CHARSET=utf8;
+  ```
+
+- **`ohrm_location`**: Defines physical company locations (offices, branches) that can be associated with employees or subdivisions.
+  ```sql
+  CREATE TABLE `ohrm_location` (
+    `id` INT NOT NULL AUTO_INCREMENT,
+    `name` VARCHAR(100) NOT NULL,
+    `country_code` VARCHAR(3) NOT NULL,
+    `province` VARCHAR(60) DEFAULT NULL,
+    `city` VARCHAR(60) DEFAULT NULL,
+    `address` VARCHAR(255) DEFAULT NULL,
+    `zip_code` VARCHAR(30) DEFAULT NULL,
+    `phone` VARCHAR(30) DEFAULT NULL,
+    `fax` VARCHAR(30) DEFAULT NULL,
+    `notes` VARCHAR(255) DEFAULT NULL,
+    PRIMARY KEY (`id`)
+  ) ENGINE=INNODB DEFAULT CHARSET=utf8;
+  ```
+
+### Job & Salary Structure Tables
+
+- **`ohrm_job_title`**: Defines all job titles within the organization. This is referenced by `hs_hr_employee`.
+  ```sql
+  CREATE TABLE `ohrm_job_title` (
+    `id` INT NOT NULL AUTO_INCREMENT,
+    `job_title` VARCHAR(100) NOT NULL,
+    `job_description` VARCHAR(400) DEFAULT NULL,
+    `note` VARCHAR(400) DEFAULT NULL,
+    `job_spec_attachment_id` INT DEFAULT NULL,
+    `is_deleted` TINYINT(1) DEFAULT 0,
+    PRIMARY KEY (`id`)
+  ) ENGINE=INNODB DEFAULT CHARSET=utf8;
+  ```
+
+- **`ohrm_pay_grade`**: Defines salary bands with minimum and maximum values, providing structure for compensation.
+  ```sql
+  CREATE TABLE `ohrm_pay_grade` (
+    `id` INT NOT NULL AUTO_INCREMENT,
+    `name` VARCHAR(60) DEFAULT NULL,
+    PRIMARY KEY (`id`)
+  ) ENGINE=INNODB DEFAULT CHARSET=utf8;
+  ```
+  *Note: The currency and salary steps are defined in the related `ohrm_pay_grade_currency` table.*
+
+### Metadata (Lookup) Tables
+These tables provide the options for dropdowns and selectors throughout the PIM module. They are managed here in the Admin section.
+
+- **`ohrm_employment_status`**: Defines statuses like "Full-Time", "Part-Time", "Contract".
+- **`ohrm_job_category`**: For grouping job titles.
+- **`ohrm_nationality`**: A simple lookup table for nationalities.
+- **`ohrm_skill`**: Manages the list of available skills.
+- **`ohrm_license`**: Manages the list of available professional licenses.
+- **`ohrm_language`**: Manages the list of available languages.
+- **`ohrm_education`**: Defines education levels (e.g., "Bachelors Degree").
+
+### Summary
+The Admin module serves as the configuration hub for the entire system. It establishes the organizational chart, job roles, salary structures, and the metadata required to populate employee records in PIM. Its proper configuration is a prerequisite for the effective use of all other modules. # Project Blueprint: Delivix HR (Modern Replication)
+
+This document outlines the comprehensive, four-phase plan to replicate the legacy OrangeHRM system using a modern, scalable, and maintainable technology stack.
+
+---
+
+## Phase 0: Technology Stack & Project Foundation
+
+**Goal:** Make key architectural decisions and establish a robust project structure that will ensure consistency and scalability from day one.
+
+#### 1. Technology Stack
+- **Frontend:** **Next.js (App Router)** - For server-rendered, high-performance user interfaces.
+- **Backend:** **NestJS** - A TypeScript-based Node.js framework with a modular architecture that mirrors the clean design of the legacy system.
+- **Database:** **PostgreSQL** - A powerful, open-source relational database.
+- **ORM:** **Prisma** - For type-safe database access, defining our entire schema as code.
+- **UI/Styling:** **Shadcn/ui** leveraging **Radix UI** and **Tailwind CSS** - For accessible, composable, and modern UI components.
+
+#### 2. Project Structure (Monorepo)
+The project will be a monorepo to maximize code and type sharing between the frontend and backend.
+```
+```# Frontend Deep Dive: Leave Module
+
+This document outlines the frontend implementation details for the Leave module. The architecture closely mirrors the PIM module, demonstrating a consistent and well-designed frontend.
+
+## Core Component: Leave List Table
+
+Unlike the PIM module, the Leave module's primary view is split into two components. The parent, `LeaveList.vue`, defines the filter UI, but the core logic, API interaction, and data display are all handled by a child component, `LeaveListTable.vue`. This component is designed to be highly reusable.
+
+- **Child Component File:** `orangehrm/src/client/src/orangehrmLeavePlugin/components/LeaveListTable.vue`
+- **Parent Component File:** `orangehrm/src/client/src/orangehrmLeavePlugin/pages/LeaveList.vue`
+
+### Architecture and Design
+
+The implementation leverages component composition, slots, and reusable composable functions.
+
+- **Component Composition & Reusability:** The `LeaveListTable.vue` component is designed to serve two different roles. A boolean prop, `myLeaveList`, determines which API endpoint to target:
+    - `false` (default): Fetches from `/api/v2/leave/employees/leave-requests` for a comprehensive admin/manager view.
+    - `true`: Fetches from `/api/v2/leave/leave-requests` to get leave for only the logged-in user.
+- **Slot-Based UI Injection:** The `LeaveList.vue` parent component defines the complex filter form UI. It then passes this UI down to the `LeaveListTable.vue` child via a [Vue slot](https://vuejs.org/guide/components/slots.html). This is an effective inversion of control pattern that keeps the data-handling component clean while allowing for flexible UI.
+- **Specialized Composables:** Like the PIM module, it uses `usePaginate` for data fetching. It also introduces a domain-specific composable:
+    - **`useLeaveActions`:** This crucial composable encapsulates all the business logic for performing actions on leave requests (e.g., Approve, Reject, Cancel). It handles API calls for these actions and manages the display of any necessary confirmation modals. This cleanly separates action logic from the display logic.
+
+### Data Flow: Searching for Leave Requests
+
+The reactive data flow for filtering is identical to the pattern established in the PIM module.
+
+1.  **User Interaction & State Update:** The user interacts with a filter input in the parent `LeaveList.vue` component. A `v-model` updates a local `filters` state object within the `LeaveListTable.vue` component (passed via the slot).
+
+2.  **Filter Serialization:** A `serializedFilters` computed property watches the `filters` object. It transforms the state into the exact query parameter object required by the backend Leave API, including formatting dates and mapping arrays.
+
+3.  **Reactive API Call:** The `usePaginate` composable, whose dependencies include `serializedFilters`, detects the change and triggers a new API request to the appropriate leave request endpoint.
+
+4.  **Data Normalization:** A `leavelistNormalizer` function transforms the raw API response into a view-friendly model. This is significantly more complex than the PIM normalizer. It is responsible for:
+    - Building human-readable date range strings (e.g., "2023-01-01 to 2023-01-03").
+    - Appending duration information (e.g., "Half Day").
+    - Aggregating and formatting leave status breakdowns (e.g., "Scheduled (1.00), Taken (1.00)").
+    - Aggregating and formatting leave balance information.
+
+5.  **Re-render:** The normalized and formatted data is passed to the `oxd-card-table` component, which re-renders to display the updated list. # Frontend Deep Dive: PIM Module
+
+This document outlines the frontend implementation details for the Personnel Information Management (PIM) module.
+
+## Core Component: Employee List
+
+The primary user interface for managing employees is a single Vue component responsible for filtering, displaying, and providing entry points for creating and editing employees.
+
+- **Component File:** `orangehrm/src/client/src/orangehrmPimPlugin/pages/employee/Employee.vue`
+
+### Architecture and Design
+
+The component follows modern Vue 3 design patterns, utilizing the Composition API and a component-based architecture.
+
+- **Component-Based UI:** The entire view is constructed from a series of reusable, high-level components from a custom library (`@ohrm/oxd`). This includes components for the search filter container (`oxd-table-filter`), the data table (`oxd-card-table`), and form inputs (`employee-autocomplete`, various dropdowns). This promotes consistency and reusability.
+- **Composable Functions:** Stateful logic is extracted into reusable "composable" functions (`usePaginate`, `useSort`). This keeps the main component's code clean, readable, and focused on orchestrating the different pieces.
+- **Local State Management:** There is no centralized state management library (like Vuex or Pinia). Instead, component-local state is managed using Vue's `ref` and `computed` utilities. This is a simpler approach that is well-suited for self-contained features like this one.
+- **Generic API Service:** A generic `APIService` is used to handle HTTP requests. It is instantiated with the specific endpoint it needs to communicate with, decoupling the component from the low-level details of `axios`.
+
+### Data Flow: Searching for an Employee
+
+The data flow for filtering the employee list is a clear, reactive, one-way loop.
+
+1.  **User Interaction & State Update:** The user interacts with a filter input (e.g., `jobtitle-dropdown`). The `v-model` directive updates a property on the reactive `filters` object within the component's `setup` function.
+
+2.  **Filter Serialization:** A `computed` property named `serializedFilters` is responsible for watching the `filters` object. It transforms the user-friendly filter state into the precise query parameter object required by the backend API. This acts as a translation layer between the frontend's internal state and the backend API contract.
+
+3.  **Reactive API Call:** The `usePaginate` composable is initialized with the `APIService` and the `serializedFilters` computed property. Because `serializedFilters` is a reactive dependency, any change to the filters triggers the composable to automatically execute a new API request to `GET /api/v2/pim/employees` with the newly generated query parameters.
+
+4.  **Data Normalization:** Upon receiving a successful response from the API, the `usePaginate` composable passes the raw data array to a `dataNormalizer` function. This function transforms the backend data model into the view model required by the `oxd-card-table` component. This decouples the view from the API structure and allows for UI-specific data formatting (e.g., concatenating names).
+
+5.  **Re-render:** The normalized data is passed as a `prop` to the `oxd-card-table` component, which then re-renders to display the updated, filtered list of employees to the user. # Delivix HR: Architectural Deep Dive
+
+## Chapter 11: Leave Module API
+
+This document outlines the API endpoints for the Leave Management module. This API provides a comprehensive interface for the entire leave workflow, from administrative configuration to employee self-service and manager approvals.
+
+### Key Architectural Observations
+- **Clear Separation of Concerns**: The API is well-structured, with distinct endpoints for administrative setup (`/leave/holidays`, `/leave/leave-types`), employee self-service (`/leave/leave-requests`), and manager/admin actions (`/leave/employees/leave-requests`).
+- **Full Workflow Support**: The endpoints collectively support the complete leave management lifecycle, including checking balances, submitting requests, adding comments, and processing approvals or rejections.
+- **Consistency**: The API maintains the same RESTful design, versioning, and controller patterns seen in the PIM and Admin modules, ensuring a consistent and predictable developer experience.
+
+---
+
+### Leave API Endpoint Summary
+
+This table summarizes the most critical endpoints for the Leave module.
+
+| Path                                        | Methods               | Description                                                                                                   |
+| :------------------------------------------ | :-------------------- | :------------------------------------------------------------------------------------------------------------ |
+| `/api/v2/leave/leave-types`                 | `GET`, `POST`, `DELETE` | **Admin:** CRUD for the different types of leave available in the organization (e.g., "Annual", "Sick").        |
+| `/api/v2/leave/holidays`                    | `GET`, `POST`, `DELETE` | **Admin:** CRUD for defining public holidays, which affects leave calculations.                               |
+| `/api/v2/leave/workweek`                    | `GET`, `PUT`          | **Admin:** Defines the company's standard working days of the week.                                           |
+| `/api/v2/leave/leave-entitlements`          | `GET`, `POST`, `DELETE` | **Admin:** CRUD for assigning leave entitlements (e.g., giving "20 days of Annual Leave" to an employee or group). |
+| `/api/v2/leave/leave-requests`              | `GET`, `POST`         | **Employee:** Creates a new leave request or views their own past requests. This is a core self-service feature.    |
+| `/api/v2/leave/employees/leave-requests`    | `GET`, `PUT`          | **Supervisor/Admin:** Views and manages leave requests for other employees. The `PUT` is used for approvals/rejections. |
+| `/api/v2/leave/employees/leave-balances`    | `GET`                 | **Employee/Admin:** Retrieves current leave balances for one or more employees.                               |
+
+---
+
+### Conclusion
+The Leave Module API provides a robust and complete set of tools for managing employee time off. Its logical structure and comprehensive features make it an excellent model for the leave functionality in the new Delivix HR application. # Delivix HR: Architectural Deep Dive - Leave Module Implementation
+
+This document provides a deep, file-by-file analysis of the business logic for key functionalities within the Leave module.
+
+---
+
+## Functionality 1: Apply for Leave
+
+**Trace:** `POST /api/v2/leave/leave-requests`
+
+This functionality is a prime example of a well-structured, service-oriented architecture that handles a complex business process with multiple validation steps.
+
+### 1. API Layer: `MyLeaveRequestAPI.php`
+- **Method:** `create()`
+- **Logic:**
+  - This layer acts as a clean entry point. It does not contain any business logic.
+  - It gathers all parameters from the web request (dates, type, comment) and populates a `DetailedLeaveRequest` Data Transfer Object (DTO).
+  - It identifies the employee from the current authenticated user session.
+  - It delegates the entire operation to a single, specialized service: `LeaveApplicationService`, by calling its `applyLeave()` method and passing the DTO.
+
+### 2. Service Layer: `LeaveApplicationService.php`
+- **This class is the heart of the functionality and contains all the business rules.**
+- **Method:** `applyLeave()`
+- **Logic:**
+  - **Initial Validation:** Performs high-level checks:
+    - Verifies the leave dates are within the company's allowed leave period.
+    - Calls `hasOverlapLeaves()` to prevent duplicate/overlapping requests.
+    - Calls `isWorkShiftLengthExceeded()` to validate against shift rules.
+  - **Core Logic Delegation:** If initial checks pass, it calls its own private `saveLeaveRequest()` method to continue.
+- **Method:** `saveLeaveRequest()`
+- **Logic:**
+  - **Entitlement Check (Critical Path):** This is the most important step.
+    - It retrieves an "entitlement strategy" object from the `LeaveEntitlementService`.
+    - It calls the strategy's `handleLeaveCreate()` method. This encapsulates the complex logic of checking if the employee has a sufficient leave balance for the request.
+    - If the balance is insufficient and company policy (`allowToExceedLeaveBalance()`) forbids it, it throws a `LeaveBalanceExceeded` exception, stopping the process.
+  - **DAO Delegation:** If the entitlement check passes:
+    - It calls `getLeaveRequestDao()->saveLeaveRequest()`. This single call passes the `LeaveRequest` entity, the list of daily `Leave` entities, and the `entitlement` updates to the DAO. The DAO is expected to save all of this in a single database transaction.
+  - **Save Comment:** If a comment was included, it creates and saves a `LeaveRequestComment` entity via the DAO.
+  - **Workflow and Events:**
+    - It determines the correct workflow action ("APPLY").
+    - It dispatches a `LeaveApply` event. This is the crucial step that likely triggers supervisor email notifications and puts the item in their approval queue.
+
+### 3. DAO Layer (Inferred)
+- **Method:** `saveLeaveRequest()`
+- **Logic:**
+  - Based on the service layer calls, the DAO's `saveLeaveRequest` method is responsible for executing a database transaction that:
+    1.  `INSERT`s the new record into the `ohrm_leave_request` table.
+    2.  `INSERT`s multiple records into the `ohrm_leave` table (one for each day of leave).
+    3.  `UPDATE`s the `ohrm_leave_entitlement` table to deduct the leave days from the employee's balance.
+  - Wrapping these operations in a transaction ensures data integrity; if any step fails, the entire application is rolled back. # Delivix HR: Architectural Deep Dive
+
+## Chapter 4: Leave Module Data Model
+
+This document outlines the database schema for the Leave Management module. This module is a core HR function that manages all aspects of employee time-off, from entitlements to requests and balance tracking.
+
+### Core Leave Configuration Tables
+
+- **`ohrm_leave_type`**: Defines the different categories of leave available (e.g., "Annual Leave", "Sick Leave", "Unpaid Leave").
+  ```sql
+  CREATE TABLE `ohrm_leave_type` (
+    `id` INT NOT NULL AUTO_INCREMENT,
+    `name` VARCHAR(50) NOT NULL,
+    `deleted` TINYINT(1) DEFAULT 0,
+    `exclude_in_reports_if_no_entitlement` TINYINT(1) DEFAULT 0,
+    `operational_country_id` INT DEFAULT NULL,
+    PRIMARY KEY (`id`)
+  );
+  ```
+
+- **`ohrm_holiday`**: Defines specific public holidays for the organization. These days are typically not counted against an employee's leave balance.
+  ```sql
+  CREATE TABLE `ohrm_holiday` (
+    `id` INT NOT NULL AUTO_INCREMENT,
+    `description` VARCHAR(214) DEFAULT NULL,
+    `date` DATE DEFAULT NULL,
+    `recurring` TINYINT(1) DEFAULT 0,
+    `length` DECIMAL(2,1) DEFAULT NULL,
+    `operational_country_id` INT DEFAULT NULL,
+    PRIMARY KEY (`id`)
+  );
+  ```
+
+- **`ohrm_work_week`**: Defines the company's standard working week, including which days are considered workdays. This is critical for calculating the duration of a leave request.
+  ```sql
+  CREATE TABLE IF NOT EXISTS `ohrm_work_week` (
+    `id` INT NOT NULL AUTO_INCREMENT,
+    `day` TINYINT(1) NOT NULL,
+    `length` DECIMAL(4,2) NOT NULL,
+    `operational_country_id` INT DEFAULT NULL,
+    PRIMARY KEY (`id`)
+  );
+  ```
+
+### Entitlement and Balance Management
+
+- **`ohrm_leave_entitlement`**: This is a crucial table that assigns a specific number of leave days of a certain type to an employee for a given leave period.
+  ```sql
+  CREATE TABLE `ohrm_leave_entitlement` (
+    `id` INT NOT NULL AUTO_INCREMENT,
+    `emp_number` INT NOT NULL,
+    `no_of_days` DECIMAL(8,4) NOT NULL,
+    `days_used` DECIMAL(8,4) DEFAULT 0.0000,
+    `leave_type_id` INT NOT NULL,
+    `from_date` DATE NOT NULL,
+    `to_date` DATE NOT NULL,
+    `entitlement_type_id` INT NOT NULL,
+    `deleted` TINYINT(1) DEFAULT 0,
+    PRIMARY KEY (`id`),
+    FOREIGN KEY (`emp_number`) REFERENCES `hs_hr_employee`(`emp_number`) ON DELETE CASCADE,
+    FOREIGN KEY (`leave_type_id`) REFERENCES `ohrm_leave_type`(`id`) ON DELETE CASCADE
+  );
+  ```
+  **Analysis**: This table tracks the total entitlement (`no_of_days`) and how much has been used (`days_used`). This forms the basis of an employee's leave balance.
+
+- **`ohrm_leave_adjustment`**: Allows an administrator to manually adjust an employee's leave entitlement (e.g., adding carry-over days).
+  ```sql
+  CREATE TABLE `ohrm_leave_adjustment` (
+    `id` INT NOT NULL AUTO_INCREMENT,
+    `emp_number` INT NOT NULL,
+    `no_of_days` DECIMAL(8,4) NOT NULL,
+    `leave_type_id` INT NOT NULL,
+    `from_date` DATE DEFAULT NULL,
+    `to_date` DATE DEFAULT NULL,
+    `adjustment_type` INT,
+    `created_by_id` INT,
+    `created_by_name` VARCHAR(255),
+    `created_at` TIMESTAMP,
+    `note` VARCHAR(255),
+    PRIMARY KEY (`id`)
+  );
+  ```
+
+### Leave Request Workflow
+
+- **`ohrm_leave_request`**: Stores the initial request for leave made by an employee.
+  ```sql
+  CREATE TABLE `ohrm_leave_request` (
+    `id` INT NOT NULL AUTO_INCREMENT,
+    `leave_type_id` INT NOT NULL,
+    `date_applied` DATE NOT NULL,
+    `emp_number` INT NOT NULL,
+    `comments` VARCHAR(256) DEFAULT NULL,
+    PRIMARY KEY (`id`)
+  );
+  ```
+
+- **`ohrm_leave`**: This table represents the actual leave event, including dates, duration, and status (e.g., Pending Approval, Scheduled, Taken, Rejected). It links to a leave request.
+  ```sql
+  CREATE TABLE `ohrm_leave` (
+    `id` INT NOT NULL AUTO_INCREMENT,
+    `date` DATE DEFAULT NULL,
+    `length_hours` DECIMAL(6,2) DEFAULT NULL,
+    `length_days` DECIMAL(8,4) DEFAULT NULL,
+    `status` SMALLINT,
+    `comments` VARCHAR(256) DEFAULT NULL,
+    `leave_request_id` INT NOT NULL,
+    `leave_type_id` INT NOT NULL,
+    `emp_number` INT NOT NULL,
+    `start_time` TIME DEFAULT NULL,
+    `end_time` TIME DEFAULT NULL,
+    PRIMARY KEY (`id`),
+    FOREIGN KEY (`leave_request_id`) REFERENCES `ohrm_leave_request`(`id`) ON DELETE CASCADE
+  );
+  ```
+  **Analysis**: A single `ohrm_leave_request` can result in multiple rows in `ohrm_leave` if the leave spans multiple days. The `status` column is key to tracking the request through its lifecycle.
+
+### Summary
+The Leave Module is a well-structured system.
+1.  **Configuration**: An admin first defines `ohrm_leave_type`, `ohrm_holiday`, and `ohrm_work_week`.
+2.  **Entitlement**: The admin then assigns leave to employees by creating records in `ohrm_leave_entitlement`.
+3.  **Request Workflow**: An employee creates an `ohrm_leave_request`, which generates one or more `ohrm_leave` records.
+4.  **Approval**: A supervisor or admin changes the `status` of the `ohrm_leave` records.
+5.  **Balance Update**: Once leave is approved and taken, the `days_used` in the corresponding `ohrm_leave_entitlement` record is updated. # Delivix HR: Architectural Deep Dive
+
+## Chapter 14: Performance Module API
+
+This document outlines the API endpoints for the Performance module. This API facilitates the entire employee performance review lifecycle, from managing Key Performance Indicators (KPIs) to conducting multi-stage evaluations.
+
+### Key Architectural Observations
+- **Evaluation-Focused Design**: The API is clearly centered around the `reviews` resource and the different types of `evaluation` that contribute to it (employee, supervisor, final). This provides a structured workflow for the review process.
+- **Centralized KPI Management**: The API provides endpoints for managing a central library of `kpis`, which can then be associated with specific performance reviews, ensuring consistency.
+- **Role-Differentiated Endpoints**: The design clearly separates endpoints for different actors in the process: administrators setting up reviews, employees performing self-evaluations, and supervisors conducting their evaluations.
+
+---
+
+### Performance API Endpoint Summary
+
+This table summarizes the most critical endpoints for the Performance module.
+
+| Path                                                       | Methods        | Description                                                                                             |
+| :--------------------------------------------------------- | :------------- | :------------------------------------------------------------------------------------------------------ |
+| `/api/v2/performance/kpis`                                 | `GET`, `POST`, `DELETE` | **Admin:** CRUD for Key Performance Indicators (KPIs), the metrics used for evaluation.                  |
+| `/api/v2/performance/manage/reviews`                       | `GET`, `POST`, `DELETE` | **Admin:** CRUD for Performance Reviews. This is where new review cycles are created and managed.      |
+| `/api/v2/performance/reviews/{reviewId}/kpis`              | `GET`          | **Employee/Supervisor:** Retrieves the specific KPIs associated with a given performance review.           |
+| `/api/v2/performance/reviews/{reviewId}/evaluation/employee` | `GET`, `PUT`   | **Employee:** Retrieves or submits the employee's self-evaluation for a review.                         |
+| `/api/v2/performance/reviews/{reviewId}/evaluation/supervisor` | `GET`, `PUT`   | **Supervisor:** Retrieves or submits the supervisor's evaluation of the employee for a review.          |
+| `/api/v2/performance/reviews/{reviewId}/evaluation/final`  | `GET`, `PUT`   | **Supervisor/Admin:** Retrieves or submits the final evaluation and rating for a review.                |
+| `/api/v2/performance/trackers`                             | `GET`          | **Employee:** Allows employees to view their performance trackers (logs of achievements/goals).         |
+
+---
+
+### Conclusion
+The Performance Module API provides a well-structured and comprehensive interface for managing employee performance. Its clear separation of concerns and workflow-oriented design make it a solid blueprint for the performance management features in the new Delivix HR application. # Delivix HR: Architectural Deep Dive
+
+## Chapter 7: Performance Module Data Model
+
+This document outlines the database schema for the Performance module. This module facilitates the employee performance review process, including the management of Key Performance Indicators (KPIs), review cycles, and ratings from various reviewers.
+
+### Core Performance Tables
+
+- **`ohrm_kpi`**: This table stores the Key Performance Indicators that employees are rated against. KPIs are typically associated with a specific `ohrm_job_title`.
+  ```sql
+  CREATE TABLE `ohrm_kpi` (
+    `id` INT NOT NULL AUTO_INCREMENT,
+    `job_title_code` INT,
+    `kpi_indicators` VARCHAR(255),
+    `min_rating` INT DEFAULT 1,
+    `max_rating` INT DEFAULT 5,
+    `default_kpi` TINYINT(1) DEFAULT 0,
+    `deleted` TINYINT(1) DEFAULT 0,
+    PRIMARY KEY (`id`),
+    FOREIGN KEY (`job_title_code`) REFERENCES `ohrm_job_title`(`id`) ON DELETE CASCADE
+  );
+  ```
+  **Analysis**: KPIs are defined with a rating scale (`min_rating`, `max_rating`), and they are linked directly to job titles, ensuring that employees are evaluated on relevant criteria.
+
+- **`ohrm_performance_review`**: This is the central table for a performance review instance. It links an employee, a set of reviewers, and tracks the status and period of the review.
+  ```sql
+  CREATE TABLE `ohrm_performance_review` (
+    `id` INT NOT NULL AUTO_INCREMENT,
+    `employee_number` INT,
+    `reviewer_id` INT,
+    `creator_id` INT,
+    `job_title_code` INT,
+    `status` INT,
+    `from_date` DATE,
+    `to_date` DATE,
+    `due_date` DATE,
+    `completed_date` DATE,
+    PRIMARY KEY (`id`),
+    FOREIGN KEY (`employee_number`) REFERENCES `hs_hr_employee`(`emp_number`) ON DELETE CASCADE,
+    FOREIGN KEY (`reviewer_id`) REFERENCES `ohrm_reviewer`(`id`) ON DELETE SET NULL,
+    FOREIGN KEY (`creator_id`) REFERENCES `hs_hr_employee`(`emp_number`) ON DELETE SET NULL
+  );
+  ```
+  **Analysis**: The `status` column is key to the workflow, tracking the review from "SCHEDULED" to "IN PROGRESS" and "COMPLETED".
+
+- **`ohrm_reviewer`**: This table represents an individual who is providing feedback in a review. This is typically a supervisor but can be other employees (e.g., for 360-degree feedback).
+  ```sql
+  CREATE TABLE `ohrm_reviewer` (
+    `id` INT NOT NULL AUTO_INCREMENT,
+    `review_id` INT,
+    `employee_number` INT,
+    `status` INT,
+    `completed_date` DATE,
+    `comment` TEXT,
+    PRIMARY KEY (`id`),
+    FOREIGN KEY (`review_id`) REFERENCES `ohrm_performance_review`(`id`) ON DELETE CASCADE,
+    FOREIGN KEY (`employee_number`) REFERENCES `hs_hr_employee`(`emp_number`) ON DELETE CASCADE
+  );
+  ```
+
+- **`ohrm_reviewer_rating`**: This table stores the actual rating given by a reviewer for a specific KPI within a performance review.
+  ```sql
+  CREATE TABLE `ohrm_reviewer_rating` (
+    `id` INT NOT NULL AUTO_INCREMENT,
+    `review_id` INT,
+    `reviewer_id` INT,
+    `kpi_id` INT,
+    `rating` INT,
+    `comment` TEXT,
+    PRIMARY KEY (`id`),
+    FOREIGN KEY (`review_id`) REFERENCES `ohrm_performance_review`(`id`) ON DELETE CASCADE,
+    FOREIGN KEY (`reviewer_id`) REFERENCES `ohrm_reviewer`(`id`) ON DELETE CASCADE,
+    FOREIGN KEY (`kpi_id`) REFERENCES `ohrm_kpi`(`id`) ON DELETE CASCADE
+  );
+  ```
+  **Analysis**: This is the most granular table, capturing the specific scores and comments that form the core of the performance evaluation.
+
+### Summary
+The Performance module provides a structured framework for formal employee evaluations.
+1.  **Configuration**: An admin or HR manager defines `ohrm_kpi`s and associates them with specific `ohrm_job_title`s.
+2.  **Review Cycle Creation**: A new `ohrm_performance_review` is created for an employee for a specific period.
+3.  **Reviewer Assignment**: One or more `ohrm_reviewer` records are created and linked to the performance review.
+4.  **Evaluation**: Each reviewer submits their feedback by creating `ohrm_reviewer_rating` records for each relevant KPI.
+5.  **Completion**: Once all reviewers have submitted their ratings, the `status` of the `ohrm_performance_review` is updated to "COMPLETED", and the results are finalized. # Delivix HR: Architectural Deep Dive
+
+## Chapter 8: PIM Module API
+
+This document outlines the API endpoints for the PIM module, as defined in the `routes.yaml` configuration. The API provides a comprehensive and RESTful interface for managing all aspects of employee data.
+
+### Key Architectural Observations
+- **API Versioning**: All endpoints are consistently prefixed with `/api/v2/`, indicating good versioning practice.
+- **Resource-Oriented Design**: URLs are structured around the primary `pim/employees` resource and its sub-resources (e.g., `picture`, `job-details`).
+- **Standard HTTP Methods**: The API correctly and consistently uses `GET` for retrieval, `POST` for creation, `PUT` for updates, and `DELETE` for removal.
+- **Generic Controller Pattern**: The system uses a `GenericRestController` that delegates logic to specific API handler classes (e.g., `OrangeHRM\Pim\Api\EmployeeAPI`). This is a scalable and maintainable architectural pattern.
+
+---
+
+### PIM API Endpoint Summary
+
+This table summarizes the most important endpoints and their functions. This serves as the primary contract for any frontend interacting with the PIM module.
+
+| Path                                                       | Methods               | Description                                                                     |
+| :--------------------------------------------------------- | :-------------------- | :------------------------------------------------------------------------------ |
+| `/api/v2/pim/employees`                                    | `GET`, `POST`, `DELETE` | **The main endpoint.** Gets a list of employees, creates a new employee, or deletes multiple employees. |
+| `/api/v2/pim/employees/{empNumber}`                        | `GET`, `PUT`          | Gets or updates the core details for a single employee.                          |
+| `/api/v2/pim/employees/count`                              | `GET`                 | Retrieves the total number of employees, useful for pagination.                 |
+| `/api/v2/pim/employees/{empNumber}/picture`                | `GET`, `PUT`          | Gets or updates an employee's profile picture.                                  |
+| `/api/v2/pim/employees/{empNumber}/personal-details`       | `GET`, `PUT`          | Manages an employee's personal details (name, birthday, gender, etc.).          |
+| `/api/v2/pim/employees/{empNumber}/job-details`            | `GET`, `PUT`          | Manages an employee's job-related information (title, status, subunit).         |
+| `/api/v2/pim/employees/{empNumber}/contact-details`        | `GET`, `PUT`          | Manages an employee's contact information (address, phone, email).              |
+| `/api/v2/pim/employees/{empNumber}/salary-components`      | `GET`, `POST`, `DELETE` | Manages the list of salary components for an employee.                          |
+| `/api/v2/pim/employees/{empNumber}/dependents`             | `GET`, `POST`, `DELETE` | Manages the list of an employee's dependents.                                   |
+| `/api/v2/pim/employees/{empNumber}/emergency-contacts`     | `GET`, `POST`, `DELETE` | Manages the list of an employee's emergency contacts.                           |
+| `/api/v2/pim/employees/{empNumber}/attachments`            | `GET`, `POST`, `DELETE` | Manages file attachments associated with an employee's record.                  |
+| `/api/v2/pim/employees/{empNumber}/skills`                 | `GET`, `POST`, `DELETE` | Manages the list of skills for an employee.                                     |
+| `/api/v2/pim/employees/{empNumber}/educations`             | `GET`, `POST`, `DELETE` | Manages the list of educational qualifications for an employee.                 |
+| `/api/v2/pim/employees/{empNumber}/languages`              | `GET`, `POST`, `DELETE` | Manages the list of languages for an employee.                                  |
+| `/api/v2/pim/employees/{empNumber}/terminations`           | `GET`, `POST`, `DELETE` | Manages termination records for an employee.                                    |
+
+---
+
+### Conclusion
+The PIM API is well-structured and follows modern REST conventions. The breakdown of the large employee resource into smaller, more focused sub-resources is an excellent design choice that improves usability and performance. This API definition provides a clear blueprint for developing the PIM features in the new Delivix HR application. # Delivix HR: Architectural Deep Dive - PIM Module Implementation
+
+This document provides a deep, file-by-file analysis of the business logic for key functionalities within the PIM (Personal Information Management) module.
+
+---
+
+## Functionality 1: Get Employee Details
+
+**Trace:** `GET /api/v2/pim/employees/{empNumber}`
+
+### 1. API Layer: `EmployeeAPI.php`
+- **Method:** `getOne()`
+- **Logic:**
+  - Extracts `empNumber` from the URL.
+  - Performs permission checks.
+  - Delegates the core fetch operation to `EmployeeService`.
+  - Serializes the resulting `Employee` object into a JSON response.
+
+### 2. Service Layer: `EmployeeService.php`
+- **Method:** `getEmployeeByEmpNumber()`
+- **Logic:**
+  - Acts as a direct pass-through, containing no additional business logic for this specific read operation.
+  - Delegates immediately to the `EmployeeDao`.
+
+### 3. DAO Layer: `EmployeeDao.php`
+- **Method:** `getEmployeeByEmpNumber()`
+- **Logic:**
+  - Uses the Doctrine ORM: `return $this->getRepository(Employee::class)->find($empNumber);`
+  - This issues a primary key lookup on the `hs_hr_employee` table (`SELECT * ... WHERE emp_number = ?`).
+  - The ORM maps the resulting database row to an `Employee` entity object and returns it.
+
+---
+
+## Functionality 2: Create a New Employee
+
+**Trace:** `POST /api/v2/pim/employees`
+
+### 1. API Layer: `EmployeeAPI.php`
+- **Method:** `create()`
+- **Logic:**
+  1.  **Authorization:** Checks if the current user has permission to create employees.
+  2.  **Validation:** Validates the incoming request body (firstName, lastName, etc.).
+  3.  **Entity Creation:** Creates a new, empty `Employee` entity object.
+  4.  **Parameter Mapping:** Populates the `Employee` object with the validated data from the request.
+  5.  **User Account Creation:** If `createLoginDetails` is flagged, it calls a separate `UserRoleManager` to create a corresponding `User` entity with a role and password. This is a key example of good Separation of Concerns.
+  6.  **Service Delegation:** Delegates the saving of the `Employee` object to `EmployeeService`.
+  7.  **Event Dispatch:** After saving, dispatches an `EMPLOYEE_ADDED` event for other parts of the system to consume.
+  8.  **Response:** Returns the newly created employee data as a JSON response.
+
+### 2. Service Layer: `EmployeeService.php`
+- **Method:** `saveNewEmployee()`
+- **Logic:**
+  1.  **ID Generation:** Calls an `IDGeneratorService` to generate and reserve the next available `emp_number` (primary key).
+  2.  **Delegate to Save:** Passes the `Employee` object to its own internal `saveEmployee()` method.
+- **Method:** `saveEmployee()`
+- **Logic:**
+  1.  **DAO Delegation:** Passes the `Employee` object directly to the `EmployeeDao` for database persistence.
+  2.  **Event Dispatch:** Fires a generic `EMPLOYEE_SAVED` event, distinct from the `EMPLOYEE_ADDED` event, for purposes like auditing.
+
+### 3. DAO Layer: `EmployeeDao.php`
+- **Method:** `saveEmployee()`
+- **Logic:**
+  - Uses the Doctrine ORM's `persist()` method.
+  - Because the `$employee` object was originally fetched from the database, the ORM's "Unit of Work" knows it's an existing record.
+  - When the transaction commits, the ORM automatically generates and executes an `UPDATE hs_hr_employee SET ...` statement with the new values, including the foreign keys for job title, subunit, etc.
+
+---
+
+## Functionality 3: Update Employee Job Details
+
+**Trace:** `PUT /api/v2/pim/employees/{empNumber}/job-details`
+
+### 1. API Layer: `EmployeeJobDetailAPI.php`
+- **Method:** `update()`
+- **Logic:**
+  - Fetches the existing `Employee` entity from the database via the `EmployeeService`.
+  - Extracts the new IDs for job title, subunit, location, etc., from the request body.
+  - Uses a Decorator pattern (`$employee->getDecorator()->set...ById()`) to update the `Employee` entity in memory. This pattern cleverly encapsulates the logic of fetching the full related entities (e.g., the `JobTitle` object) and associating them with the employee.
+  - Delegates the saving of the updated `Employee` entity to the `EmployeeService`.
+  - Dispatches a `JoinedDateChangedEvent` if the employee's start date was modified.
+
+### 2. Service Layer: `EmployeeService.php`
+- **Method:** `updateEmployeeJobDetails()`
+- **Logic:**
+  - Immediately delegates the persistence of the updated `Employee` object to the `saveEmployee()` method.
+  - Dispatches a specific `UpdateJobDetailsEvent`, allowing other modules to react to this change.
+- **Method:** `saveEmployee()`
+- **Logic:**
+  - Passes the updated `Employee` object to the `EmployeeDao` for persistence.
+  - Dispatches a generic `EmployeeSavedEvent` for auditing.
+
+### 3. DAO Layer: `EmployeeDao.php`
+- **Method:** `saveEmployee()`
+- **Logic:**
+  - Uses the Doctrine ORM's `persist()` method.
+  - Because the `$employee` object was originally fetched from the database, the ORM's "Unit of Work" knows it's an existing record.
+  - When the transaction commits, the ORM automatically generates and executes an `UPDATE hs_hr_employee SET ...` statement with the new values, including the foreign keys for job title, subunit, etc.
+
+---
+
+## Functionality 4: Search for Employees
+
+**Trace:** `GET /api/v2/pim/employees` (with query parameters)
+
+### 1. API Layer: `EmployeeAPI.php`
+- **Method:** `getAll()`
+- **Logic:**
+  - Extracts potential filter parameters from the request's query string (eg, `nameOrId`, `jobTitleId`).
+  - Populates a dedicated Data Transfer Object (DTO), `EmployeeSearchFilterParams`, with these values. This is an excellent pattern that keeps the code clean by passing a single, structured object between layers instead of many individual parameters.
+  - Delegates the search to the `EmployeeService`, calling both `getEmployeeCount()` for pagination and `getEmployeeList()` for the actual data.
+  - Formats the results and pagination metadata into a JSON response.
+
+### 2. Service Layer: `EmployeeService.php`
+- **Methods:** `getEmployeeCount()` and `getEmployeeList()`
+- **Logic:**
+  - This layer acts as a clean pass-through for search operations.
+  - It immediately delegates the calls to the corresponding methods in the `EmployeeDao`, passing the `EmployeeSearchFilterParams` DTO directly.
+
+### 3. DAO Layer: `EmployeeDao.php`
+- **Method:** `getEmployeeList()` and `getEmployeeCount()`
+- **Logic:**
+  - Both methods rely on a central helper method, `getEmployeeListQueryBuilderWrapper()`, which contains the core logic for building the search query.
+- **Method:** `getEmployeeListQueryBuilderWrapper()`
+- **Logic:**
+  - **Query Builder:** Initializes a Doctrine Query Builder (`FROM Employee ...`).
+  - **Dynamic Filtering:** This is the key. It systematically checks for each filter in the `EmployeeSearchFilterParams` DTO and dynamically appends `AND WHERE` clauses to the query.
+  - For text searches (`name`), it constructs complex `OR` conditions (`...LIKE :name`).
+  - For relationship filters (`subunitId`), it adds simple `WHERE` clauses (`...WHERE subunit.id = :subunitId`).
+  - For status filters (`includeEmployees`), it checks if a termination record `IS NULL` or `IS NOT NULL`.
+  - **Dynamic Joins:** It intelligently adds `LEFT JOIN` clauses only when they are needed for sorting or filtering, making the query efficient.
+  - **Return Builder:** It returns the fully configured Query Builder object to the calling methods, which then execute it to get either the list of results or the total count. # Delivix HR: Architectural Deep Dive
+
+## Chapter 1: PIM (Personal Information Management) Data Model
+
+This document outlines the database schema for the core Personal Information Management (PIM) module. The analysis is based on the foundational SQL scripts from the OrangeHRM source.
+
+### The Core Table: `hs_hr_employee`
+
+This is the central table for every employee record. It acts as the hub for all personal and job-related information.
+
+#### Schema Definition
+```sql
+CREATE TABLE `hs_hr_employee` (
+  `emp_number` INT(7) NOT NULL,
+  `employee_id` VARCHAR(50) DEFAULT NULL,
+  `emp_lastname` VARCHAR(100) NOT NULL DEFAULT '',
+  `emp_firstname` VARCHAR(100) NOT NULL DEFAULT '',
+  `emp_middle_name` VARCHAR(100) NOT NULL DEFAULT '',
+  `emp_nick_name` VARCHAR(100) DEFAULT '',
+  `emp_smoker` SMALLINT(6) DEFAULT '0',
+  `ethic_race_code` VARCHAR(13) DEFAULT NULL,
+  `emp_birthday` DATE DEFAULT NULL,
+  `nation_code` VARCHAR(13) DEFAULT NULL,
+  `emp_gender` SMALLINT(6) DEFAULT NULL,
+  `emp_marital_status` VARCHAR(20) DEFAULT NULL,
+  `emp_ssn_num` VARCHAR(100) DEFAULT '',
+  `emp_sin_num` VARCHAR(100) DEFAULT '',
+  `emp_other_id` VARCHAR(100) DEFAULT '',
+  `emp_dri_lice_num` VARCHAR(100) DEFAULT '',
+  `emp_dri_lice_exp_date` DATE DEFAULT NULL,
+  `emp_military_service` VARCHAR(100) DEFAULT '',
+  `emp_status` VARCHAR(13) DEFAULT NULL,
+  `job_title_code` VARCHAR(13) DEFAULT NULL,
+  `eeo_cat_code` VARCHAR(13) DEFAULT NULL,
+  `work_station` VARCHAR(13) DEFAULT NULL,
+  `emp_street1` VARCHAR(100) DEFAULT '',
+  `emp_street2` VARCHAR(100) DEFAULT '',
+  `city_code` VARCHAR(100) DEFAULT '',
+  `coun_code` VARCHAR(100) DEFAULT '',
+  `provin_code` VARCHAR(100) DEFAULT '',
+  `emp_zipcode` VARCHAR(20) DEFAULT '',
+  `emp_hm_telephone` VARCHAR(50) DEFAULT '',
+  `emp_mobile` VARCHAR(50) DEFAULT '',
+  `emp_work_telephone` VARCHAR(50) DEFAULT '',
+  `emp_work_email` VARCHAR(50) DEFAULT '',
+  `sal_grd_code` VARCHAR(13) DEFAULT NULL,
+  `joined_date` DATE DEFAULT NULL,
+  `emp_oth_email` VARCHAR(50) DEFAULT '',
+  `termination_id` INT(4) DEFAULT NULL,
+  `custom1` VARCHAR(250) DEFAULT NULL,
+  `custom2` VARCHAR(250) DEFAULT NULL,
+  `custom3` VARCHAR(250) DEFAULT NULL,
+  `custom4` VARCHAR(250) DEFAULT NULL,
+  `custom5` VARCHAR(250) DEFAULT NULL,
+  `custom6` VARCHAR(250) DEFAULT NULL,
+  `custom7` VARCHAR(250) DEFAULT NULL,
+  `custom8` VARCHAR(250) DEFAULT NULL,
+  `custom9` VARCHAR(250) DEFAULT NULL,
+  `custom10` VARCHAR(250) DEFAULT NULL,
+  PRIMARY KEY (`emp_number`)
+) ENGINE=INNODB DEFAULT CHARSET=utf8;
+```
+
+#### Analysis:
+- **Primary Key**: `emp_number`. This is the central ID used as a foreign key across the application.
+- **Personal Data**: Contains all basic personal information (`emp_lastname`, `emp_firstname`, `emp_birthday`, `emp_gender`, etc.).
+- **National IDs**: Includes fields for `emp_ssn_num` (US) and `emp_sin_num` (Canada), indicating international design.
+- **Job Information**: `job_title_code`, `emp_status`, and `work_station` link to other tables to define the employee's role.
+- **Contact Info**: A comprehensive set of address and communication fields.
+- **Custom Fields**: `custom1` through `custom10` provide simple extensibility for administrators.
+- **Termination**: `termination_id` is a nullable foreign key, linking to a termination record.
+
+---
+
+### Key Satellite Tables for PIM
+
+These tables store detailed information related to an employee, all linking back to `hs_hr_employee` via the `emp_number` foreign key.
+
+- **`hs_hr_emp_picture`**: Stores the employee's profile picture as a `mediumblob`.
+- **`hs_hr_emp_emergency_contacts`**: A one-to-many relationship for storing emergency contacts.
+- **`hs_hr_emp_dependents` / `hs_hr_emp_children`**: Stores information about an employee's family members.
+- **`ohrm_emp_education`**: Tracks educational qualifications, allowing multiple entries per employee.
+- **`hs_hr_emp_skill`**: Manages employee skills.
+- **`ohrm_emp_license`**: Stores professional licenses held by the employee.
+- **`hs_hr_emp_language`**: Tracks language proficiency.
+- **`hs_hr_emp_basicsalary`**: A crucial table for storing salary information. The `ebsal_basic_salary` column is a `VARCHAR`, suggesting potential application-layer encryption.
+- **`hs_hr_emp_reportto`**: Defines the reporting hierarchy (manager-subordinate relationships) through a self-referencing link on the `hs_hr_employee` table. # Delivix HR: Architectural Deep Dive
+
+## Chapter 13: Recruitment Module API
+
+This document outlines the API endpoints for the Recruitment module. This API manages the entire hiring process, from posting job vacancies to managing candidates through a multi-step interview and offering process.
+
+### Key Architectural Observations
+- **Workflow-Driven Design**: The API is highly focused on actions and state transitions. Endpoints like `/shortlist`, `/shedule-interview`, `/pass`, `/fail`, and `/hire` represent explicit, well-defined steps in the recruitment pipeline. This is a very strong and clear way to model a complex business process.
+- **Clear Entity Separation**: The API properly separates the management of `vacancies` (the job openings) and `candidates` (the applicants), linking them implicitly through the workflow actions.
+- **Public vs. Internal Endpoints**: The design wisely includes separate `/public/vacancies` endpoints. This allows the internal recruitment tool to be developed independently from a public-facing careers page, which can consume the read-only public API.
+
+---
+
+### Recruitment API Endpoint Summary
+
+This table summarizes the most critical endpoints for the Recruitment module, highlighting the key workflow steps.
+
+| Path                                                       | Methods        | Description                                                                                             |
+| :--------------------------------------------------------- | :------------- | :------------------------------------------------------------------------------------------------------ |
+| `/api/v2/recruitment/vacancies`                            | `GET`, `POST`, `DELETE` | **Recruiter:** CRUD for job vacancies.                                                                  |
+| `/api/v2/recruitment/candidates`                           | `GET`, `POST`, `DELETE` | **Recruiter:** CRUD for candidates. New applicants are added here.                                        |
+| `/api/v2/recruitment/candidates/{candidateId}/shortlist`   | `PUT`          | **Workflow:** Moves a candidate to the "Shortlisted" state.                                             |
+| `/api/v2/recruitment/candidates/{candidateId}/shedule-interview` | `POST`         | **Workflow:** Schedules an interview for the candidate.                                                 |
+| `/api/v2/recruitment/candidates/{candidateId}/interviews/{interviewId}/pass` | `PUT`          | **Workflow:** Marks an interview as "Passed".                                                           |
+| `/api/v2/recruitment/candidates/{candidateId}/interviews/{interviewId}/fail` | `PUT`          | **Workflow:** Marks an interview as "Failed".                                                           |
+| `/api/v2/recruitment/candidates/{candidateId}/job/offer`   | `PUT`          | **Workflow:** Moves a candidate to the "Job Offered" state.                                             |
+| `/api/v2/recruitment/candidates/{candidateId}/hire`        | `PUT`          | **Workflow:** The final step. Moves a candidate to "Hired", likely triggering their creation as an employee in PIM. |
+| `/api/v2/recruitment/public/vacancies`                     | `GET`          | **Public:** A read-only endpoint to list open jobs, suitable for a public careers website.              |
+
+---
+
+### Conclusion
+The Recruitment API is an excellent example of a workflow-driven design. Its clear, action-oriented endpoints provide a robust foundation for building a feature-rich applicant tracking system (ATS). This model should be closely followed for the recruitment features in Delivix HR. # Delivix HR: Architectural Deep Dive
+
+## Chapter 6: Recruitment Module Data Model
+
+This document outlines the database schema for the Recruitment module. This module manages the entire hiring lifecycle, from defining job vacancies and managing candidates to conducting interviews and making job offers.
+
+### Core Recruitment Tables
+
+- **`ohrm_job_vacancy`**: This table holds the details of a specific job opening. It links to a `ohrm_job_title` and an employee who acts as the hiring manager.
+  ```sql
+  CREATE TABLE `ohrm_job_vacancy` (
+    `id` INT NOT NULL AUTO_INCREMENT,
+    `job_title_code` INT,
+    `hiring_manager_id` INT,
+    `name` VARCHAR(255),
+    `description` TEXT,
+    `status` INT,
+    `published_in_feed` TINYINT(1) DEFAULT 0,
+    `defined_time` TIMESTAMP,
+    `updated_time` TIMESTAMP,
+    PRIMARY KEY (`id`),
+    FOREIGN KEY (`job_title_code`) REFERENCES `ohrm_job_title`(`id`) ON DELETE SET NULL,
+    FOREIGN KEY (`hiring_manager_id`) REFERENCES `hs_hr_employee`(`emp_number`) ON DELETE SET NULL
+  );
+  ```
+  **Analysis**: `status` tracks whether the vacancy is "ACTIVE", "CLOSED", etc. `published_in_feed` suggests an integration with a public job board or a "Careers" page.
+
+- **`ohrm_job_candidate`**: This table stores information about individuals who have applied for jobs. It is a separate "person" table, distinct from `hs_hr_employee`.
+  ```sql
+  CREATE TABLE `ohrm_job_candidate` (
+    `id` INT NOT NULL AUTO_INCREMENT,
+    `first_name` VARCHAR(100),
+    `middle_name` VARCHAR(100),
+    `last_name` VARCHAR(100),
+    `email` VARCHAR(100),
+    `contact_number` VARCHAR(30),
+    `keywords` VARCHAR(255),
+    `comment` TEXT,
+    `date_of_application` DATE,
+    `consent_to_keep_data` TINYINT(1) DEFAULT 0,
+    PRIMARY KEY (`id`)
+  );
+  ```
+  **Analysis**: `consent_to_keep_data` is an important field for GDPR and data privacy compliance.
+
+- **`ohrm_job_candidate_vacancy`**: This is the crucial join table that represents a single application, linking a candidate to a vacancy. It also tracks the application's status through the hiring pipeline.
+  ```sql
+  CREATE TABLE `ohrm_job_candidate_vacancy` (
+    `id` INT NOT NULL AUTO_INCREMENT,
+    `candidate_id` INT NOT NULL,
+    `vacancy_id` INT NOT NULL,
+    `status` VARCHAR(100),
+    `applied_date` TIMESTAMP,
+    PRIMARY KEY (`id`),
+    FOREIGN KEY (`candidate_id`) REFERENCES `ohrm_job_candidate`(`id`) ON DELETE CASCADE,
+    FOREIGN KEY (`vacancy_id`) REFERENCES `ohrm_job_vacancy`(`id`) ON DELETE CASCADE
+  );
+  ```
+  **Analysis**: The `status` field is the core of the recruitment workflow, tracking a candidate's progress from "APPLICATION INITIATED" to "INTERVIEW SCHEDULED", "OFFERED", and "HIRED".
+
+### Supporting Recruitment Tables
+
+- **`ohrm_job_interview`**: Stores details about scheduled interviews, linking the application, the interviewers, and the date/time.
+  ```sql
+  CREATE TABLE `ohrm_job_interview` (
+    `id` INT NOT NULL AUTO_INCREMENT,
+    `candidate_vacancy_id` INT,
+    `interview_name` VARCHAR(100),
+    `interview_date` DATE,
+    `interview_time` TIME,
+    `note` TEXT,
+    PRIMARY KEY (`id`),
+    FOREIGN KEY (`candidate_vacancy_id`) REFERENCES `ohrm_job_candidate_vacancy`(`id`) ON DELETE CASCADE
+  );
+  ```
+
+- **`ohrm_job_interview_interviewer`**: A join table to allow multiple interviewers for a single interview.
+  ```sql
+  CREATE TABLE `ohrm_job_interview_interviewer` (
+    `interview_id` INT NOT NULL,
+    `interviewer_id` INT NOT NULL,
+    PRIMARY KEY (`interview_id`, `interviewer_id`),
+    FOREIGN KEY (`interview_id`) REFERENCES `ohrm_job_interview`(`id`) ON DELETE CASCADE,
+    FOREIGN KEY (`interviewer_id`) REFERENCES `hs_hr_employee`(`emp_number`) ON DELETE CASCADE
+  );
+  ```
+
+- **`ohrm_job_candidate_attachment`**: Stores attachments related to a candidate, such as their resume or cover letter.
+  ```sql
+  CREATE TABLE `ohrm_job_candidate_attachment` (
+    `id` INT NOT NULL AUTO_INCREMENT,
+    `candidate_id` INT NOT NULL,
+    `file_name` VARCHAR(255),
+    `file_type` VARCHAR(255),
+    `file_size` INT,
+    `file_content` MEDIUMBLOB,
+    `attachment_type` INT,
+    PRIMARY KEY (`id`),
+    FOREIGN KEY (`candidate_id`) REFERENCES `ohrm_job_candidate`(`id`) ON DELETE CASCADE
+  );
+  ```
+
+### Summary
+The Recruitment module provides a comprehensive Applicant Tracking System (ATS).
+1.  **Vacancy Creation**: A hiring manager creates an `ohrm_job_vacancy` for a specific `ohrm_job_title`.
+2.  **Application**: A person applies, creating an `ohrm_job_candidate` record and an `ohrm_job_candidate_vacancy` record to link them to the specific job. Their resume is stored in `ohrm_job_candidate_attachment`.
+3.  **Pipeline Management**: The `status` of the `ohrm_job_candidate_vacancy` record is updated as the candidate moves through the process.
+4.  **Interviewing**: `ohrm_job_interview` records are created to manage interview schedules.
+5.  **Hiring**: When a candidate is hired, their `status` is updated, and the system would then trigger a workflow to create a new `hs_hr_employee` record from the `ohrm_job_candidate` data. # Delivix HR: Architectural Deep Dive
+
+## Chapter 12: Time & Attendance Module API
+
+This document outlines the API endpoints for the Time & Attendance module. This API manages employee timesheets, attendance records, and the related entities such as customers, projects, and activities that enable detailed time tracking.
+
+### Key Architectural Observations
+- **Project-Based Time Tracking**: The API is heavily structured around `projects` and `customers`. This indicates a strong focus on tracking time against specific client work or internal initiatives, going beyond simple attendance.
+- **Dual-Purpose Endpoints**: Following the established pattern, the API provides distinct endpoints for an employee's own timesheets (e.g., `/api/v2/time/timesheets`) and for managers to oversee employee timesheets (e.g., `/api/v2/time/employees/timesheets/list`).
+- **Complete Timesheet Lifecycle**: The API supports the full workflow: creating a timesheet (`POST`), adding and editing time entries (`PUT .../entries`), and submitting for approval (`PUT .../timesheets/{id}`).
+
+---
+
+### Time & Attendance API Endpoint Summary
+
+This table summarizes the most critical endpoints for the Time & Attendance module.
+
+| Path                                     | Methods        | Description                                                                                               |
+| :--------------------------------------- | :------------- | :-------------------------------------------------------------------------------------------------------- |
+| `/api/v2/time/customers`                 | `GET`, `POST`, `DELETE` | **Admin:** CRUD for customers, which can be associated with projects.                                       |
+| `/api/v2/time/projects`                  | `GET`, `POST`, `DELETE` | **Admin:** CRUD for projects. Time entries are logged against activities within these projects.           |
+| `/api/v2/time/project/{projectId}/activities` | `GET`, `POST`, `DELETE` | **Admin:** CRUD for project activities. These are the specific tasks that employees log time against.     |
+| `/api/v2/time/timesheets`                | `GET`, `POST`  | **Employee:** Retrieves an employee's own timesheets or creates a new one for the current period.          |
+| `/api/v2/time/timesheets/{id}`           | `PUT`          | **Employee:** Submits the specified timesheet for approval.                                               |
+| `/api/v2/time/timesheets/{timesheetId}/entries` | `GET`, `PUT`   | **Employee:** Retrieves or updates the individual time entries (the grid of hours) for a given timesheet.   |
+| `/api/v2/time/employees/timesheets/list` | `GET`          | **Supervisor/Admin:** Retrieves a list of timesheets for multiple employees, typically for review and approval. |
+
+---
+
+### Conclusion
+The Time & Attendance API provides a powerful and flexible system for tracking work hours. Its integration with project management concepts makes it a valuable model for the Delivix HR application, particularly for any future plans involving billable hours or project-based costing. # Delivix HR: Architectural Deep Dive
+
+## Chapter 5: Time & Attendance Module Data Model
+
+This document outlines the database schema for the Time and Attendance module. This module is responsible for tracking employee work hours through timesheets and individual attendance records.
+
+### Core Timesheet Tables
+
+- **`ohrm_timesheet`**: This table acts as a header or container for a collection of time entries for a single employee over a specific period (e.g., a week).
+  ```sql
+  CREATE TABLE `ohrm_timesheet` (
+    `timesheet_id` INT NOT NULL AUTO_INCREMENT,
+    `employee_id` INT NOT NULL,
+    `state` VARCHAR(255) NOT NULL,
+    `start_date` DATE NOT NULL,
+    `end_date` DATE NOT NULL,
+    PRIMARY KEY (`timesheet_id`),
+    FOREIGN KEY (`employee_id`) REFERENCES `hs_hr_employee`(`emp_number`) ON DELETE CASCADE
+  );
+  ```
+  **Analysis**: The `state` column (e.g., "NOT SUBMITTED", "SUBMITTED", "APPROVED") is crucial for managing the timesheet approval workflow.
+
+- **`ohrm_timesheet_item`**: This table holds the individual time entries that make up a timesheet. Each row represents a block of time spent on a specific activity.
+  ```sql
+  CREATE TABLE `ohrm_timesheet_item` (
+    `timesheet_item_id` INT NOT NULL AUTO_INCREMENT,
+    `timesheet_id` INT NOT NULL,
+    `project_id` INT NOT NULL,
+    `activity_id` INT NOT NULL,
+    `date` DATE NOT NULL,
+    `duration` INT NOT NULL,
+    `comment` VARCHAR(255),
+    PRIMARY KEY (`timesheet_item_id`),
+    FOREIGN KEY (`timesheet_id`) REFERENCES `ohrm_timesheet`(`timesheet_id`) ON DELETE CASCADE
+  );
+  ```
+  **Analysis**: Time is tracked against `project_id` and `activity_id`, allowing for detailed reporting on how work hours are spent. Duration is stored as an integer, likely representing seconds or minutes.
+
+### Project & Customer Tables (for Time Categorization)
+These tables are managed in the Admin module but are fundamental to the Time module's operation.
+
+- **`ohrm_customer`**: Defines external customers or clients.
+  ```sql
+  CREATE TABLE `ohrm_customer` (
+    `customer_id` INT NOT NULL AUTO_INCREMENT,
+    `name` VARCHAR(100) NOT NULL,
+    `description` VARCHAR(255),
+    `deleted` TINYINT(1) DEFAULT 0,
+    PRIMARY KEY (`customer_id`)
+  );
+  ```
+
+- **`ohrm_project`**: Defines projects, which are always associated with a customer.
+  ```sql
+  CREATE TABLE `ohrm_project` (
+    `project_id` INT NOT NULL AUTO_INCREMENT,
+    `customer_id` INT NOT NULL,
+    `name` VARCHAR(100),
+    `description` VARCHAR(255),
+    `deleted` TINYINT(1) DEFAULT 0,
+    PRIMARY KEY (`project_id`),
+    FOREIGN KEY (`customer_id`) REFERENCES `ohrm_customer`(`customer_id`) ON DELETE CASCADE
+  );
+  ```
+
+- **`ohrm_project_activity`**: Defines the specific activities that can be performed within a project.
+  ```sql
+  CREATE TABLE `ohrm_project_activity` (
+    `activity_id` INT NOT NULL AUTO_INCREMENT,
+    `project_id` INT NOT NULL,
+    `name` VARCHAR(100),
+    `deleted` TINYINT(1) DEFAULT 0,
+    PRIMARY KEY (`activity_id`),
+    FOREIGN KEY (`project_id`) REFERENCES `ohrm_project`(`project_id`) ON DELETE CASCADE
+  );
+  ```
+
+### Attendance Records (Punch In/Out)
+
+- **`ohrm_attendance_record`**: This table stores the raw punch-in and punch-out events for employees, providing a simpler way to track attendance.
+  ```sql
+  CREATE TABLE `ohrm_attendance_record` (
+    `id` BIGINT AUTO_INCREMENT,
+    `employee_id` INT NOT NULL,
+    `punch_in_utc_time` DATETIME,
+    `punch_in_note` VARCHAR(255),
+    `punch_in_time_offset` VARCHAR(10),
+    `punch_out_utc_time` DATETIME,
+    `punch_out_note` VARCHAR(255),
+    `punch_out_time_offset` VARCHAR(10),
+    `state` VARCHAR(255) NOT NULL,
+    PRIMARY KEY (`id`),
+    FOREIGN KEY (`employee_id`) REFERENCES `hs_hr_employee`(`emp_number`) ON DELETE CASCADE
+  );
+  ```
+  **Analysis**: Storing times in UTC along with the timezone offset (`punch_in_time_offset`) is a robust way to handle employees in different geographic locations. The `state` indicates whether the record is active or has been manually edited/approved.
+
+### Summary
+The Time & Attendance module provides two primary methods for tracking work:
+1.  **Timesheets**: A detailed, project-based method where employees categorize their work hours against specific projects and activities. This is ideal for professional services, client billing, and detailed productivity analysis.
+2.  **Punch In/Out**: A simpler method focused on tracking start and end times for a workday. This is ideal for tracking overall attendance and for hourly workers.
+
+The data model is well-designed to support both of these common workflows. # Delivix HR: Architectural Deep Dive
+
+## Chapter 3: User, Roles, and Permissions Data Model
+
+This document outlines the database schema for the User Management and Permissions module. This system controls authentication and authorization, determining what actions a user can perform.
+
+### Core User and Role Tables
+
+- **`ohrm_user`**: The central table for all system users who can log in. It is distinct from the `hs_hr_employee` table but can be linked to it.
+  ```sql
+  CREATE TABLE `ohrm_user` (
+    `id` INT NOT NULL AUTO_INCREMENT,
+    `user_role_id` INT NOT NULL,
+    `emp_number` INT DEFAULT NULL,
+    `user_name` VARCHAR(40) UNIQUE,
+    `user_password` VARCHAR(255),
+    `is_admin` VARCHAR(3) DEFAULT 'No',
+    `status` TINYINT(1) DEFAULT 1,
+    `created_by` INT,
+    `created_date` DATETIME,
+    `deleted` TINYINT(1) DEFAULT 0,
+    PRIMARY KEY (`id`),
+    FOREIGN KEY (`user_role_id`) REFERENCES `ohrm_user_role`(`id`) ON DELETE CASCADE,
+    FOREIGN KEY (`emp_number`) REFERENCES `hs_hr_employee`(`emp_number`) ON DELETE SET NULL
+  );
+  ```
+  **Analysis:**
+  - Every user must have a `user_role_id`, which defines their permissions.
+  - A user can optionally be linked to an employee record via `emp_number`. This is how an employee gets ESS (Employee Self-Service) access.
+  - A user not linked to an employee would be a non-employee admin.
+  - The `is_admin` flag seems like a legacy or simplified way to grant full rights, but the primary mechanism is role-based.
+
+- **`ohrm_user_role`**: Defines the different roles in the system (e.g., "Admin", "ESS", "Supervisor").
+  ```sql
+  CREATE TABLE `ohrm_user_role` (
+    `id` INT NOT NULL AUTO_INCREMENT,
+    `name` VARCHAR(255) UNIQUE NOT NULL,
+    `display_name` VARCHAR(255) NOT NULL,
+    `is_assignable` TINYINT(1) DEFAULT 0,
+    `is_predefined` TINYINT(1) DEFAULT 0,
+    PRIMARY KEY (`id`)
+  ) ENGINE=INNODB DEFAULT CHARSET=utf8;
+  ```
+  **Analysis:**
+  - This is the central point for creating and managing roles. The `name` is the unique identifier.
+  - `is_predefined` likely protects default system roles from being deleted.
+
+### Permission Control Schema
+
+The permission model is screen-based. A role is granted access to specific screens within a module.
+
+- **`ohrm_module`**: Defines the top-level modules of the application (e.g., "PIM", "Leave", "Admin").
+  ```sql
+  CREATE TABLE `ohrm_module` (
+    `id` INT NOT NULL AUTO_INCREMENT,
+    `name` VARCHAR(120) UNIQUE,
+    `status` TINYINT(1) DEFAULT 1,
+    PRIMARY KEY (`id`)
+  ) ENGINE=INNODB DEFAULT CHARSET=utf8;
+  ```
+
+- **`ohrm_screen`**: Defines individual screens or pages within each module.
+  ```sql
+  CREATE TABLE ohrm_screen (
+    `id` INT NOT NULL AUTO_INCREMENT,
+    `name` VARCHAR(100) NOT NULL,
+    `module_id` INT NOT NULL,
+    `action_url` VARCHAR(255) NOT NULL,
+    PRIMARY KEY (`id`),
+    FOREIGN KEY (`module_id`) REFERENCES `ohrm_module`(`id`) ON DELETE CASCADE
+  ) ENGINE=INNODB DEFAULT CHARSET=utf8;
+  ```
+
+- **`ohrm_user_role_screen`**: This is the crucial join table that assigns permissions. It maps which roles get access to which screens.
+  ```sql
+  CREATE TABLE ohrm_user_role_screen (
+    `user_role_id` INT NOT NULL,
+    `screen_id` INT NOT NULL,
+    `can_read` TINYINT(1) DEFAULT 0,
+    `can_create` TINYINT(1) DEFAULT 0,
+    `can_update` TINYINT(1) DEFAULT 0,
+    `can_delete` TINYINT(1) DEFAULT 0,
+    PRIMARY KEY (`user_role_id`, `screen_id`),
+    FOREIGN KEY (`user_role_id`) REFERENCES `ohrm_user_role`(`id`) ON DELETE CASCADE,
+    FOREIGN KEY (`screen_id`) REFERENCES `ohrm_screen`(`id`) ON DELETE CASCADE
+  );
+  ```
+  **Analysis:**
+  - This table provides granular CRUD (Create, Read, Update, Delete) permissions for each role on a per-screen basis.
+  - To check if a user can perform an action, the application would:
+    1. Get the user's `user_role_id` from `ohrm_user`.
+    2. Find the current `screen_id` based on the URL or page being viewed.
+    3. Look up the entry in `ohrm_user_role_screen` for that role and screen.
+    4. Check if the corresponding `can_read`, `can_create`, etc., flag is set to 1.
+
+### Summary
+The permissions system is a classic Role-Based Access Control (RBAC) implementation. Users are assigned to a single Role, and that Role is granted specific CRUD permissions for various Screens, which are grouped into Modules. This is a robust and flexible system for managing access control. # Delivix HR: Architectural Deep Dive
+
+## Chapter 10: User Roles & Permissions API
+
+This document outlines the API endpoints for managing User Roles and their associated permissions. This is a critical security component of the application, defining who can see and do what. This functionality is logically part of the **Admin Module**.
+
+### Key Architectural Observations
+- **Clear Responsibility**: The API correctly separates the management of `users` (the people) from `user-roles` (the definition of their capabilities).
+- **Granular Control**: A dedicated endpoint for `/permissions` on each role allows for the fine-grained assignment of access rights, matching the data model we previously analyzed.
+
+---
+
+### User Roles & Permissions API Endpoint Summary
+
+This table summarizes the critical endpoints for managing the system's Role-Based Access Control (RBAC).
+
+| Path                                        | Methods        | Description                                                                                                   |
+| :------------------------------------------ | :------------- | :------------------------------------------------------------------------------------------------------------ |
+| `/api/v2/admin/user-roles`                  | `GET`, `POST`, `DELETE` | **CRUD** for User Roles (e.g., "Admin", "ESS", "Supervisor"). This is where roles are created or deleted.     |
+| `/api/v2/admin/user-roles/{id}`             | `GET`, `PUT`   | Gets or updates the name and details of a single user role.                                                     |
+| `/api/v2/admin/user-roles/{id}/permissions` | `GET`, `PUT`   | **The key security endpoint.** Gets or sets the detailed screen-level CRUD permissions for a specific user role. |
+
+---
+
+### Conclusion
+This API provides a robust and secure method for implementing Role-Based Access Control. By defining roles and then assigning specific permissions to them, the system can be flexibly configured to meet the security needs of any organization. This is a vital blueprint for the security model of the new Delivix HR application. 
