@@ -8,14 +8,305 @@ generator client {
 }
 
 datasource db {
-  provider     = "postgresql"
-  url          = env("DATABASE_URL")
+  provider     = "sqlite"
+  url          = "file:./dev.db"
   relationMode = "prisma"
 }
 
-// This is a stub model.
-// Delete it and add your own Prisma models.
-model Page {
+// Admin Module
+
+model Organization {
+  id                 Int     @id @default(autoincrement())
+  name               String
+  taxId              String?
+  registrationNumber String?
+  phone              String?
+  fax                String?
+  email              String?
+  country            String?
+  province           String?
+  city               String?
+  zipCode            String?
+  street1            String?
+  street2            String?
+  note               String?
+
+  @@map("ohrm_organization_gen_info")
+}
+
+model Subunit {
+  id          Int     @id @default(autoincrement())
+  name        String
+  unitId      String?
+  description String?
+  lft         Int?
+  rgt         Int?
+  level       Int?
+  parentId    Int?
+
+  @@map("ohrm_subunit")
+}
+
+model Location {
+  id          Int     @id @default(autoincrement())
+  name        String
+  countryCode String
+  province    String?
+  city        String?
+  address     String?
+  zipCode     String?
+  phone       String?
+  fax         String?
+  notes       String?
+
+  @@map("ohrm_location")
+}
+
+model JobTitle {
+  id                  Int      @id @default(autoincrement())
+  title               String   @map("job_title")
+  description         String?  @map("job_description")
+  note                String?
+  jobSpecAttachmentId Int?
+  isDeleted           Boolean? @default(false) @map("is_deleted")
+
+  @@map("ohrm_job_title")
+}
+
+model PayGrade {
+  id   Int     @id @default(autoincrement())
+  name String?
+
+  @@map("ohrm_pay_grade")
+}
+
+model EmploymentStatus {
   id   Int    @id @default(autoincrement())
-  name String
+  name String @unique
+
+  @@map("ohrm_employment_status")
+}
+
+model JobCategory {
+  id   Int    @id @default(autoincrement())
+  name String @unique
+
+  @@map("ohrm_job_category")
+}
+
+model Nationality {
+  id   Int    @id @default(autoincrement())
+  name String @unique
+
+  @@map("ohrm_nationality")
+}
+
+model Skill {
+  id   Int    @id @default(autoincrement())
+  name String @unique
+
+  employees EmployeeSkill[]
+
+  @@map("ohrm_skill")
+}
+
+model License {
+  id   Int    @id @default(autoincrement())
+  name String @unique
+
+  employees EmployeeLicense[]
+
+  @@map("ohrm_license")
+}
+
+model Language {
+  id   Int    @id @default(autoincrement())
+  name String @unique
+
+  employees EmployeeLanguage[]
+
+  @@map("ohrm_language")
+}
+
+model Education {
+  id   Int    @id @default(autoincrement())
+  name String @unique
+
+  employees EmployeeEducation[]
+
+  @@map("ohrm_education")
+}
+
+// PIM Module
+
+model Employee {
+  id                    Int       @id @map("emp_number")
+  employeeId            String?   @map("employee_id")
+  lastName              String    @map("emp_lastname")
+  firstName             String    @map("emp_firstname")
+  middleName            String    @map("emp_middle_name")
+  nickName              String?   @map("emp_nick_name")
+  isSmoker              Boolean?  @map("emp_smoker")
+  ethnicRaceCode        String?   @map("ethic_race_code")
+  birthday              DateTime? @map("emp_birthday")
+  nationalityCode       String?   @map("nation_code")
+  gender                Int?      @map("emp_gender")
+  maritalStatus         String?   @map("emp_marital_status")
+  ssnNumber             String?   @map("emp_ssn_num")
+  sinNumber             String?   @map("emp_sin_num")
+  otherId               String?   @map("emp_other_id")
+  driversLicenseNumber  String?   @map("emp_dri_lice_num")
+  driversLicenseExpDate DateTime? @map("emp_dri_lice_exp_date")
+  militaryService       String?   @map("emp_military_service")
+  employmentStatusCode  String?   @map("emp_status")
+  jobTitleCode          String?   @map("job_title_code")
+  eeoCategoryCode       String?   @map("eeo_cat_code")
+  workStation           String?   @map("work_station")
+  addressStreet1        String?   @map("emp_street1")
+  addressStreet2        String?   @map("emp_street2")
+  city                  String?   @map("city_code")
+  country               String?   @map("coun_code")
+  province              String?   @map("provin_code")
+  zipCode               String?   @map("emp_zipcode")
+  homePhone             String?   @map("emp_hm_telephone")
+  mobilePhone           String?   @map("emp_mobile")
+  workPhone             String?   @map("emp_work_telephone")
+  workEmail             String?   @map("emp_work_email")
+  privateEmail          String?   @map("emp_oth_email")
+  payGradeCode          String?   @map("sal_grd_code")
+  joinedDate            DateTime? @map("joined_date")
+  terminationId         Int?
+  custom1               String?
+  custom2               String?
+  custom3               String?
+  custom4               String?
+  custom5               String?
+  custom6               String?
+  custom7               String?
+  custom8               String?
+  custom9               String?
+  custom10              String?
+
+  emergencyContacts EmergencyContact[]
+  dependents        Dependent[]
+  educations        EmployeeEducation[]
+  skills            EmployeeSkill[]
+  licenses          EmployeeLicense[]
+  languages         EmployeeLanguage[]
+  salaries          Salary[]
+  picture           EmployeePicture?
+
+  // Self-referencing for manager/subordinate
+  manager            Employee?  @relation("ReportingHierarchy", fields: [reportingManagerId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  subordinates       Employee[] @relation("ReportingHierarchy")
+  reportingManagerId Int?
+
+  @@map("hs_hr_employee")
+}
+
+model EmployeePicture {
+  employeeId Int     @id @map("emp_number")
+  picture    Bytes?
+  filename   String?
+  filetype   String?
+  size       String?
+
+  employee Employee @relation(fields: [employeeId], references: [id])
+
+  @@map("hs_hr_emp_picture")
+}
+
+model EmergencyContact {
+  id           Int     @id @default(autoincrement())
+  employeeId   Int     @map("emp_number")
+  name         String  @map("eec_name")
+  relationship String  @map("eec_relationship")
+  homePhone    String? @map("eec_home_no")
+  mobilePhone  String? @map("eec_mobile_no")
+  workPhone    String? @map("eec_office_no")
+
+  employee Employee @relation(fields: [employeeId], references: [id])
+
+  @@map("hs_hr_emp_emergency_contacts")
+}
+
+model Dependent {
+  id           Int       @id @default(autoincrement())
+  employeeId   Int       @map("emp_number")
+  name         String    @map("ed_name")
+  relationship String    @map("ed_relationship")
+  dob          DateTime? @map("ed_dob")
+
+  employee Employee @relation(fields: [employeeId], references: [id])
+
+  @@map("hs_hr_emp_dependents")
+}
+
+model EmployeeEducation {
+  id          Int       @id @default(autoincrement())
+  employeeId  Int
+  educationId Int
+  institute   String?
+  major       String?
+  year        Int?
+  score       String?
+  startDate   DateTime?
+  endDate     DateTime?
+
+  employee  Employee  @relation(fields: [employeeId], references: [id])
+  education Education @relation(fields: [educationId], references: [id])
+
+  @@map("ohrm_emp_education")
+}
+
+model EmployeeSkill {
+  employeeId        Int
+  skillId           Int
+  yearsOfExperience Int?
+  comments          String?
+
+  employee Employee @relation(fields: [employeeId], references: [id])
+  skill    Skill    @relation(fields: [skillId], references: [id])
+
+  @@id([employeeId, skillId])
+  @@map("hs_hr_emp_skill")
+}
+
+model EmployeeLicense {
+  employeeId Int
+  licenseId  Int
+  issuedDate DateTime?
+  expiryDate DateTime?
+
+  employee Employee @relation(fields: [employeeId], references: [id])
+  license  License  @relation(fields: [licenseId], references: [id])
+
+  @@id([employeeId, licenseId])
+  @@map("ohrm_emp_license")
+}
+
+model EmployeeLanguage {
+  employeeId Int
+  languageId Int
+  fluency    Int? // e.g., 1 for basic, 5 for fluent
+  competency Int?
+  comments   String?
+
+  employee Employee @relation(fields: [employeeId], references: [id])
+  language Language @relation(fields: [languageId], references: [id])
+
+  @@id([employeeId, languageId])
+  @@map("hs_hr_emp_language")
+}
+
+model Salary {
+  id           Int    @id @default(autoincrement())
+  employeeId   Int    @unique
+  payGradeId   Int?
+  currencyCode String
+  amount       String @map("ebsal_basic_salary")
+
+  employee Employee @relation(fields: [employeeId], references: [id])
+
+  @@map("hs_hr_emp_basicsalary")
 }
