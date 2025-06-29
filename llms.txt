@@ -1,0 +1,19 @@
+Project Goal: Replicate the legacy OrangeHRM system using a modern, scalable, and maintainable technology stack.
+
+Core Technology Stack:
+- Base Template: next-forge (https://www.next-forge.com/docs)
+- Frontend: Next.js (App Router)
+- Backend: NestJS
+- Database: PostgreSQL
+- ORM: Prisma
+
+Core Modules to Replicate (based on hrms-docs):
+- Admin Module
+- PIM (Personal Information Management) Module
+- User, Roles, and Permissions Module
+- Leave Module
+- Time & Attendance Module
+- Recruitment Module
+- Performance Module
+
+The primary source of truth for the legacy system's architecture and data models is the documentation located in the `hrms-docs/` directory. The goal is to follow the patterns and API contracts defined there while implementing them with the modern `next-forge` stack. 
